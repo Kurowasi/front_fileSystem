@@ -68,6 +68,14 @@ let FileSystem = function(obj) {
      * @default function() { console.log('書き込み失敗') }
      */
     this.onerror = function() { console.log('書き込み失敗') };
+    /**
+     * 読み込みが成功した際のコールバック関数
+     * 
+     * @property onloadend
+     * @type {Function}
+     * @default function() { console.log('読み込み成功：' + this.result)};
+     */
+    this.onloadend = function() { console.log('読み込み成功：' + this.result)};
 
     this.init(obj);
 
@@ -106,6 +114,28 @@ FileSystem.prototype.init = function(obj) {
         }
     }
 };
+
+/**
+ * ファイルの中身を取得
+ * 
+ * @method readFile
+ * @param {Function} 成功した時に呼ばれるコールバック関数
+ */
+FileSystem.prototype.readFile = function(success) {
+    if (success) this.onloadend = success;
+
+    let timer = setInterval(function(that) {
+        if (that.fileEntry) {
+            clearInterval(timer);
+            (async function() {
+                let grf = await this.getReadFile(that.fileEntry);
+                let reader = new FileReader();
+                reader.onloadend = this.onloadend;
+                reader.readAsText(grf);
+            }).call(that);
+        }
+    }, 1, this);
+}
 
 /**
  * 書き込みを行う
@@ -185,6 +215,19 @@ FileSystem.prototype.getFile = function(fs, path, options) {
 FileSystem.prototype.createWriter = function(fileWriter) {
     return new Promise((resolve, reject) => {
         fileWriter.createWriter(resolve, reject);
+    });
+};
+
+/**
+ * fileを呼ぶプロミス
+ * 
+ * @method getReadFile
+ * @param {FileEntry} getFIleの戻り値
+ * @return {Promise} プロミスオブジェクトを返す
+ */
+FileSystem.prototype.getReadFile = function(fileEntry) {
+    return new Promise((resolve, reject) => {
+        fileEntry.file(resolve, reject);
     });
 };
 
