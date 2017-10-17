@@ -155,6 +155,7 @@ FileSystem.prototype.writeFile = function(blob, onwriteend, onerror) {
             clearInterval(timer);
             (async function() {
                 let cw = await that.createWriter(this.fileEntry);
+                await that.truncateFile(cw);
                 cw.onwriteend = this.onwriteend;
                 cw.onerror = this.onerror;
                 cw.write(this.blob);
@@ -228,6 +229,21 @@ FileSystem.prototype.createWriter = function(fileWriter) {
 FileSystem.prototype.getReadFile = function(fileEntry) {
     return new Promise((resolve, reject) => {
         fileEntry.file(resolve, reject);
+    });
+};
+
+/**
+ *  truncateを呼ぶプロミス
+ * 
+ * @method truncateFile
+ * @param {FileWriter} getFileの戻り値
+ * @return {Promise} プロミスオブジェクトを返す
+ */
+FileSystem.prototype.truncateFile = function(fileWriter) {
+    return new Promise((resolve, reject) => {
+        fileWriter.onwriteend = resolve;
+        fileWriter.onerror = reject;
+        fileWriter.truncate(0);
     });
 };
 
