@@ -53,6 +53,14 @@ let FileSystem = function(obj) {
      */
     this.blob = new Blob();
     /**
+     * jsonに追加するオブジェクトを格納
+     * 
+     * @property json
+     * @type {obj}
+     * @default {}
+     */
+    this.json = {};
+    /**
      * 書き込みが成功した際のコールバック関数
      * 
      * @property onwriteend
@@ -86,6 +94,15 @@ let FileSystem = function(obj) {
         this.fileEntry = await this.getFile(rfs, this.path, this.options);
     }).call(this);
 };
+
+/**
+ * 現在書き込み中かのフラグ
+ * 
+ * @property writingFlag
+ * @type Boolean
+ * @default true
+ */
+this.FileSystem.writingFlag = true;
 
 /**
  * 初期化を行う
@@ -159,6 +176,79 @@ FileSystem.prototype.writeFile = function(blob, onwriteend, onerror) {
                 cw.onwriteend = this.onwriteend;
                 cw.onerror = this.onerror;
                 cw.write(this.blob);
+            }).call(that);
+        }
+    }, 1, this);
+};
+
+/**
+ * 上書きを行う
+ * 
+ * @method overwriteFile
+ * @param {blob} ファイルに記述するblobオブジェクト
+ * @param {Function} 成功した時に呼ばれるコールバック関数
+ * @param {Function} 失敗した時に呼ばれるコールバック関数
+ */
+FileSystem.prototype.overwriteFile = function(blob, onwriteend, onerror) {
+    if (blob) this.blob = blob;
+    if (onwriteend) this.onwriteend = onwriteend;
+    if (onerror) this.onerror = onerror;
+
+    let timer = setInterval(function(that) {
+        if (that.fileEntry) {
+            clearInterval(timer);
+            (async function() {
+                let cw = await that.createWriter(this.fileEntry);
+                cw.seek(cw.length);
+                cw.onwriteend = this.onwriteend;
+                cw.onerror = this.onerror;
+                cw.write(this.blob);
+            }).call(that);
+        }
+    }, 1, this);
+};
+
+/**
+ * jsonファイルにオブジェクトを追加する
+ * 
+ * @method jsonAddFile
+ * @param {obj} jsonファイルに追加するオブジェクト
+ * @param {Function} 成功した時に呼ばれるコールバック関数
+ * @param {Function} 失敗した時に呼ばれるコールバック関数
+ */
+FileSystem.prototype.jsonAddFile = function(json, onwriteend, onerror) {
+    if (json) this.json = json;
+    if (onwriteend) this.onwriteend = onwriteend;
+    if (onerror) this.onerror = onerror;
+
+    let timer = setInterval(function(that) {
+        if (that.fileEntry && FileSystem.writingFlag) {
+            FileSystem.writingFlag = false;
+            clearInterval(timer);
+            (async function() {
+                let grf = await this.getReadFile(that.fileEntry);
+                let reader = new FileReader();
+                reader.onloadend = function(data) {
+                    (async function() {
+                        let cw = await that.createWriter(this.fileEntry);
+                        await that.truncateFile(cw);
+                        cw.onwriteend = function() {
+                            FileSystem.writingFlag = true;
+                            console.log('書き込み成功');
+                        };
+                        cw.onerror = this.onerror;
+
+                        let resultJson = [];
+                        let resultBlob;
+                        if (data.target.result !== '') {
+                            resultJson = JSON.parse(data.target.result);
+                        }
+                        if (json) resultJson.push(json);
+                        resultBlob = new Blob([JSON.stringify(resultJson, null, 4)], {type: 'application/json'});
+                        cw.write(resultBlob);
+                    }).call(this);
+                }.bind(this);
+                reader.readAsText(grf);
             }).call(that);
         }
     }, 1, this);
